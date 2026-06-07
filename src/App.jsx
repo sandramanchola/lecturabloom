@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 
 // ─── ⚙️  CONFIGURACIÓN — pega aquí tus credenciales de Supabase ──────────────
-const SUPABASE_URL = "https://saltquqgesclkpwvzbtk.supabase.co";   // ← reemplaza
-const SUPABASE_KEY = "sb_publishable_f8TXAs9UfBs4hJwE3JFKCw_zrRVosGH";                          // ← reemplaza
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || "";
+const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_KEY || "";
 
 // ─── SUPABASE CLIENT (sin SDK, fetch puro) ────────────────────────────────────
 const sb = {
@@ -236,11 +237,7 @@ const PHASES = {TEACHER_SETUP:"ts",HISTORY:"hi",SESSION_DETAIL:"sd",STUDENT_INTR
 
 async function callClaude(sys, user, max=2000) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method:"POST", headers:{
-      "Content-Type":"application/json",
-      "x-api-key":"TU_API_KEY_AQUI"
-      "anthropic-dangerous-direct-browser-access":"true"
-    },
+    method:"POST", headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
     body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:max,system:sys,messages:[{role:"user",content:user}]}),
   });
   const d = await res.json();
