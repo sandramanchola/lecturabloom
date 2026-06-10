@@ -80,7 +80,7 @@ function generateCode() {
 // ─── TRADUCCIONES ─────────────────────────────────────────────────────────────
 const T = {
   es: {
-    appName:"LecturaBloom", tagline:"Comprensión lectora · Bloom · STAAR · TEKS",
+    appName:"LecturaBloom", tagline:"Comprensión lectora · Bloom · TEKS",
     iam_teacher:"👩‍🏫 Soy Docente", iam_student:"🎒 Soy Estudiante",
     teacher_panel:"Panel del Docente", student_zone:"Zona del Estudiante", student_label:"Estudiante",
     back_home:"← Inicio",
@@ -92,7 +92,7 @@ const T = {
     reading_label:"Texto de Lectura", reading_placeholder:"Pega aquí el texto...",
     save_btn:"✅ Guardar Sesión y Activar", saving_btn:"Guardando...", fill_all:"Completa todos los campos.",
     how_works:"¿Cómo funciona?",
-    steps:["Docente — Configura texto, TEKS y objetivo.","Clase — Escalofoneo inicial con estudiantes.","Estudiante — Preguntas STAAR escaladas por Bloom.","IA — Diagnóstica y personaliza.","Tiquete RAC — Respuesta construida estilo STAAR.","Historial — Accede a sesiones anteriores siempre."],
+    steps:["Docente — Configura texto, TEKS y objetivo.","Clase — Escalofoneo inicial con estudiantes.","Estudiante — Preguntas de opción múltiple escaladas por Bloom.","IA — Diagnóstica y personaliza.","Tiquete RAC — Respuesta construida guiada.","Historial — Accede a sesiones anteriores siempre."],
     // History
     history_title:"📅 Historial de Sesiones", history_empty:"No hay sesiones anteriores.",
     history_loading:"Cargando historial...", session_of:"Sesión del", students_count:"estudiantes",
@@ -107,7 +107,7 @@ const T = {
     learning_objective:"Objetivo de Aprendizaje", your_name:"Tu nombre", name_placeholder:"Escribe tu nombre...", start_btn:"🚀 Comenzar",
     // Questions
     question_of:"Pregunta", of:"de", confirm_btn:"Confirmar →", continue_btn:"Continuar →",
-    loading_questions:"Generando preguntas STAAR...", loading_generic:"Cargando...",
+    loading_questions:"Generando preguntas...", loading_generic:"Cargando...",
     // Scaffolding
     scaffold_title:"🔨 Ejercicio de Escalofoneo", activity_label:"Actividad", hint_label:"💡 Ver pista",
     write_here:"Escribe tu respuesta...", next_step:"Siguiente →", complete_scaffold:"✅ Completar",
@@ -119,7 +119,7 @@ const T = {
     rac_c:"C — Cita Evidencia", rac_c_hint:"Cita evidencia textual con comillas o parafraseando.",
     rac_example_label:"Estructura RAC",
     rac_placeholder_r:"El texto trata sobre...", rac_placeholder_a:"Yo creo que...", rac_placeholder_c:"Según el texto, «...»",
-    send_exit:"Enviar Tiquete 🎫", loading_exit:"Generando tiquete STAAR...",
+    send_exit:"Enviar Tiquete 🎫", loading_exit:"Generando tiquete de salida...",
     rac_model_answer:"Respuesta modelo",
     // Results
     great_job:"¡Buen trabajo", result_pass:"¡Demostraste comprensión del texto!", result_fail:"¡Seguimos trabajando juntos!",
@@ -158,7 +158,7 @@ const T = {
     rac_eval_system:"Eres evaluador de escritura académica STAAR. Evalúa respuesta RAC del estudiante. SOLO JSON válido.",
   },
   en: {
-    appName:"LecturaBloom", tagline:"Reading Comprehension · Bloom · STAAR · TEKS",
+    appName:"LecturaBloom", tagline:"Reading Comprehension · Bloom · TEKS",
     iam_teacher:"👩‍🏫 I'm a Teacher", iam_student:"🎒 I'm a Student",
     teacher_panel:"Teacher Dashboard", student_zone:"Student Zone", student_label:"Student",
     back_home:"← Home",
@@ -169,7 +169,7 @@ const T = {
     reading_label:"Reading Text", reading_placeholder:"Paste the text here...",
     save_btn:"✅ Save Session & Activate", saving_btn:"Saving...", fill_all:"Please fill in all fields.",
     how_works:"How does it work?",
-    steps:["Teacher — Set text, TEKS, and objective.","Class — Initial scaffolding with students.","Student — STAAR questions scaled by Bloom.","AI — Diagnoses and personalizes.","RAC Ticket — Constructed response STAAR style.","History — Access past sessions anytime."],
+    steps:["Teacher — Set text, TEKS, and objective.","Class — Initial scaffolding with students.","Student — Multiple-choice questions scaled by Bloom.","AI — Diagnoses and personalizes.","RAC Ticket — Guided constructed response.","History — Access past sessions anytime."],
     history_title:"📅 Session History", history_empty:"No past sessions.",
     history_loading:"Loading history...", session_of:"Session from", students_count:"students",
     view_session:"View session →", new_session:"+ New Session",
@@ -181,7 +181,7 @@ const T = {
     welcome_title:"👋 Welcome", welcome_sub:"Show what you understood. The app adapts to your level.",
     learning_objective:"Learning Objective", your_name:"Your name", name_placeholder:"Type your name...", start_btn:"🚀 Start",
     question_of:"Question", of:"of", confirm_btn:"Confirm →", continue_btn:"Continue →",
-    loading_questions:"Generating STAAR questions...", loading_generic:"Loading...",
+    loading_questions:"Generating questions...", loading_generic:"Loading...",
     scaffold_title:"🔨 Scaffolding Exercise", activity_label:"Activity", hint_label:"💡 Show hint",
     write_here:"Write your answer...", next_step:"Next →", complete_scaffold:"✅ Complete",
     ref_text:"Reference text", loading_scaffold:"Generating scaffolding...",
@@ -191,7 +191,7 @@ const T = {
     rac_c:"C — Cite Evidence", rac_c_hint:"Support with textual evidence using quotes or paraphrasing.",
     rac_example_label:"RAC Structure",
     rac_placeholder_r:"The text is about...", rac_placeholder_a:"I think...", rac_placeholder_c:"According to the text, '...'",
-    send_exit:"Submit Ticket 🎫", loading_exit:"Generating STAAR exit ticket...",
+    send_exit:"Submit Ticket 🎫", loading_exit:"Generating exit ticket...",
     rac_model_answer:"Model Answer",
     great_job:"Great job", result_pass:"You demonstrated text comprehension!", result_fail:"We keep working together!",
     your_level:"Your comprehension level", bloom_label:"Bloom — Level", teacher_will_get:"Your teacher will receive a detailed report.",
@@ -238,7 +238,7 @@ const PHASES = {TEACHER_SETUP:"ts",HISTORY:"hi",SESSION_DETAIL:"sd",STUDENT_INTR
 async function callClaude(sys, user, max=2000) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method:"POST", headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:max,system:sys,messages:[{role:"user",content:user}]}),
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:max,system:sys,messages:[{role:"user",content:user}]}),
   });
   const d = await res.json();
   const raw = d.content?.map(b=>b.text||"").join("\n")||"";
@@ -765,7 +765,7 @@ function ExitTicket({setup,bloomScore,onComplete,lang}) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:"0.4rem"}}>
         <h2 style={{...S.ctitle,margin:0}}>{t.exit_title}</h2>
         <div style={{display:"flex",gap:"0.35rem"}}>
-          <span style={{...S.pill("#f9d56e"),fontSize:"0.65rem"}}>🏆 STAAR</span>
+          <span style={{...S.pill("#f9d56e"),fontSize:"0.65rem"}}>🏆 Reto</span>
           <span style={{...S.pill("#CE93D8"),fontSize:"0.65rem"}}>✍️ RAC</span>
         </div>
       </div>
