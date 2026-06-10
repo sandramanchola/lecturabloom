@@ -134,6 +134,9 @@ const T = {
     // Session detail
     session_detail:"Detalle de Sesión", back_history:"← Historial", student_detail:"Detalle del Estudiante",
     bloom_score:"Nivel Bloom", exit_result:"Tiquete de Salida", scaffolding_needed:"Necesitó Escalofoneo",
+    perf_great:"Va muy bien", perf_progress:"En progreso", perf_support:"Necesita apoyo",
+    tap_student:"Toca a un estudiante para ver su detalle", ind_strengths:"💪 Fortalezas", ind_weaknesses:"📈 A trabajar",
+    gen_analysis:"Genera el plan para ver fortalezas y áreas de cada estudiante", report_saved:"Plan guardado ✓", regen_plan:"🔄 Regenerar plan",
     rac_response:"Respuesta RAC", rac_eval:"Evaluación RAC",
     yes:"Sí", no:"No", score:"Puntaje",
     intervention_plan:"Plan de Intervención", generate_plan:"Generar Plan de Intervención",
@@ -203,6 +206,9 @@ const T = {
     teacher_not_set:"The teacher hasn't set up the reading yet.",
     session_detail:"Session Detail", back_history:"← History", student_detail:"Student Detail",
     bloom_score:"Bloom Level", exit_result:"Exit Ticket", scaffolding_needed:"Needed Scaffolding",
+    perf_great:"Doing great", perf_progress:"In progress", perf_support:"Needs support",
+    tap_student:"Tap a student to see their detail", ind_strengths:"💪 Strengths", ind_weaknesses:"📈 To work on",
+    gen_analysis:"Generate the plan to see each student's strengths and areas", report_saved:"Plan saved ✓", regen_plan:"🔄 Regenerate plan",
     rac_response:"RAC Response", rac_eval:"RAC Evaluation",
     yes:"Yes", no:"No", score:"Score",
     intervention_plan:"Intervention Plan", generate_plan:"Generate Intervention Plan",
@@ -442,7 +448,7 @@ function SessionDetail({session,onBack,lang,db}) {
   const [students,setStudents]=useState([]);
   const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState(null);
-  const [report,setReport]=useState(null);
+  const [report,setReport]=useState(session.intervention_report||null);
   const [genReport,setGenReport]=useState(false);
   const bl=getBloom(lang);
 
@@ -455,9 +461,11 @@ function SessionDetail({session,onBack,lang,db}) {
     setGenReport(true);
     const sum=students.map(s=>`${s.student_name}: Bloom ${s.bloom_score}/6, exit ${s.exit_correct?"correct":"incorrect"}, scaffolding ${s.needed_scaffolding?"yes":"no"}`).join("\n");
     const r=await callClaude(t.rep_system,
-      `Objective:"${session.objective}"\nTEKS:"${session.teks}"\nLanguage:${t.scaffold_lang}\nStudents:\n${sum}\n\nJSON:\n{"summary":"","classStrengths":[],"classGaps":[],"interventionGroups":[{"groupName":"","students":[],"bloomRange":"","priority":"high|medium|low","focus":"","strategies":[],"suggestedActivities":[]}],"immediateActions":[],"nextSteps":""}`
-    ,2500);
+      `Objective:"${session.objective}"\nTEKS:"${session.teks}"\nLanguage:${t.scaffold_lang}\nStudents:\n${sum}\n\nFor EACH student provide individual strengths and areas to work on. Then group students for intervention. JSON:\n{"summary":"","studentAnalysis":[{"name":"","strengths":["",""],"weaknesses":["",""]}],"interventionGroups":[{"groupName":"","students":[],"bloomRange":"","priority":"high|medium|low","focus":"","strategies":[],"suggestedActivities":[]}],"immediateActions":[],"nextSteps":""}`
+    ,3000);
     setReport(r); setGenReport(false);
+    // Save to Supabase so we don't regenerate (and waste AI) next time
+    if(r&&!r.raw){ try{ await (db||sb).update("sessions",session.id,{intervention_report:r}); }catch(e){} }
   };
 
   if(loading) return <Spinner msg={t.loading_generic}/>;
@@ -494,70 +502,87 @@ function SessionDetail({session,onBack,lang,db}) {
       </div>;
     })()}
 
-    {/* Student list */}
+    {/* Student performance cards */}
     <div style={S.card}>
       <p style={S.sec}>{t.students_label}</p>
       {students.length===0&&<p style={{color:"rgba(255,255,255,0.35)",textAlign:"center"}}>{t.no_data}</p>}
-      {students.map(s=>{
-        const b=bl[Math.min((s.bloom_score||1)-1,5)];
-        return <div key={s.id} style={{...S.studentRow,cursor:"pointer",border:selected?.id===s.id?"1px solid #f9d56e":"1px solid rgba(255,255,255,0.08)"}}
-          onClick={()=>setSelected(selected?.id===s.id?null:s)}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:"0.5rem"}}>
-            <div style={{fontWeight:"600"}}>{s.student_name} <span style={{fontSize:"0.72rem",color:"rgba(255,255,255,0.35)",fontWeight:"400"}}>{s.lang==="en"?"🇺🇸":"🇲🇽"}</span></div>
-            <div style={{display:"flex",gap:"0.4rem",flexWrap:"wrap",alignItems:"center"}}>
-              <span style={S.badge(s.bloom_score||1,lang)}>{b?.icon} {b?.name}</span>
-              <span style={{...S.pill(s.exit_correct?"#81C784":"#EF9A9A")}}>{s.exit_correct?"✅":"❌"} {t.exit_result}</span>
-              {s.needed_scaffolding&&<span style={S.pill("#FFB74D")}>🔨 Scaffolding</span>}
+      {students.length>0&&<p style={{fontSize:"0.75rem",color:"rgba(255,255,255,0.35)",marginTop:"-0.3rem",marginBottom:"0.9rem"}}>{t.tap_student}</p>}
+      {/* Color-coded cards grid */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:"0.6rem"}}>
+        {students.map(s=>{
+          // Performance level: green=great, yellow=progress, red=needs support
+          const bloom=s.bloom_score||0;
+          const perf = (bloom>=5&&s.exit_correct) ? "great" : (bloom>=3&&!s.needed_scaffolding) ? "progress" : "support";
+          const pcolor = {great:"#4CAF50",progress:"#FF9800",support:"#F44336"}[perf];
+          const plabel = {great:t.perf_great,progress:t.perf_progress,support:t.perf_support}[perf];
+          const isSel = selected?.id===s.id;
+          return <div key={s.id} onClick={()=>setSelected(isSel?null:s)}
+            style={{cursor:"pointer",padding:"0.8rem",borderRadius:"12px",background:pcolor+"14",border:isSel?`2px solid ${pcolor}`:`1px solid ${pcolor}40`,transition:"all 0.2s",textAlign:"center"}}>
+            <div style={{width:"12px",height:"12px",borderRadius:"50%",background:pcolor,margin:"0 auto 0.5rem"}}/>
+            <div style={{fontWeight:"700",fontSize:"0.9rem",marginBottom:"0.2rem"}}>{s.student_name} <span style={{fontSize:"0.7rem",fontWeight:"400"}}>{s.lang==="en"?"🇺🇸":"🇲🇽"}</span></div>
+            <div style={{fontSize:"0.68rem",color:pcolor,fontWeight:"600"}}>{plabel}</div>
+            <div style={{fontSize:"0.62rem",color:"rgba(255,255,255,0.35)",marginTop:"0.3rem"}}>Bloom {bloom}/6 · {s.exit_correct?"✅":"❌"}</div>
+          </div>;
+        })}
+      </div>
+
+      {/* Expanded detail of selected student */}
+      {selected&&(()=>{
+        const s=selected;
+        const ind=report?.studentAnalysis?.find(a=>a.name?.toLowerCase().trim()===s.student_name?.toLowerCase().trim());
+        return <div style={{marginTop:"1rem",padding:"1.1rem",borderRadius:"12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(249,213,110,0.2)",animation:"fadeIn 0.25s ease"}}>
+          <h3 style={{margin:"0 0 0.8rem",color:"#f9d56e",fontSize:"1.05rem"}}>{s.student_name}</h3>
+          {/* Individual strengths/weaknesses from saved report */}
+          {ind&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.7rem",marginBottom:"1rem"}}>
+            <div style={{padding:"0.7rem",borderRadius:"8px",background:"rgba(76,175,80,0.08)",border:"1px solid rgba(76,175,80,0.2)"}}>
+              <p style={{...S.sec,margin:"0 0 0.4rem",color:"#81C784"}}>{t.ind_strengths}</p>
+              {ind.strengths?.map((x,i)=><div key={i} style={{fontSize:"0.8rem",color:"rgba(255,255,255,0.7)",marginBottom:"0.25rem",lineHeight:"1.4"}}>• {x}</div>)}
             </div>
-          </div>
-          {/* Expanded detail */}
-          {selected?.id===s.id&&<div style={{marginTop:"1rem",borderTop:"1px solid rgba(255,255,255,0.08)",paddingTop:"1rem",animation:"fadeIn 0.25s ease"}}>
-            {/* RAC response */}
-            {s.rac_response&&<div style={{marginBottom:"0.8rem"}}>
-              <p style={S.sec}>{t.rac_response}</p>
-              {[["R","#2196F3",s.rac_response.r],["A","#4CAF50",s.rac_response.a],["C","#FF9800",s.rac_response.c]].map(([l,c,v])=>v&&(
-                <div key={l} style={{marginBottom:"0.5rem",padding:"0.6rem 0.8rem",borderRadius:"8px",background:c+"0d",border:`1px solid ${c}22`}}>
-                  <strong style={{color:c,fontSize:"0.78rem"}}>{l}:</strong> <span style={{fontSize:"0.85rem",color:"rgba(255,255,255,0.75)"}}>{v}</span>
-                </div>
-              ))}
-            </div>}
-            {/* RAC scores */}
-            {s.rac_evaluation&&<div>
-              <p style={S.sec}>{t.rac_eval}</p>
-              <div style={{display:"flex",gap:"0.4rem",flexWrap:"wrap",marginBottom:"0.5rem"}}>
-                <ScoreChip label="R" score={s.rac_evaluation.rScore} max={2}/>
-                <ScoreChip label="A" score={s.rac_evaluation.aScore} max={2}/>
-                <ScoreChip label="C" score={s.rac_evaluation.cScore} max={2}/>
-                <ScoreChip label="Total" score={s.rac_evaluation.totalScore} max={s.rac_evaluation.maxScore}/>
+            <div style={{padding:"0.7rem",borderRadius:"8px",background:"rgba(255,152,0,0.08)",border:"1px solid rgba(255,152,0,0.2)"}}>
+              <p style={{...S.sec,margin:"0 0 0.4rem",color:"#FFB74D"}}>{t.ind_weaknesses}</p>
+              {ind.weaknesses?.map((x,i)=><div key={i} style={{fontSize:"0.8rem",color:"rgba(255,255,255,0.7)",marginBottom:"0.25rem",lineHeight:"1.4"}}>• {x}</div>)}
+            </div>
+          </div>}
+          {!ind&&<p style={{fontSize:"0.78rem",color:"rgba(255,255,255,0.35)",fontStyle:"italic",marginBottom:"1rem"}}>{t.gen_analysis}</p>}
+          {/* RAC response */}
+          {s.rac_response&&<div style={{marginBottom:"0.8rem"}}>
+            <p style={S.sec}>{t.rac_response}</p>
+            {[["R","#2196F3",s.rac_response.r],["A","#4CAF50",s.rac_response.a],["C","#FF9800",s.rac_response.c]].map(([l,c,v])=>v&&(
+              <div key={l} style={{marginBottom:"0.5rem",padding:"0.6rem 0.8rem",borderRadius:"8px",background:c+"0d",border:`1px solid ${c}22`}}>
+                <strong style={{color:c,fontSize:"0.78rem"}}>{l}:</strong> <span style={{fontSize:"0.85rem",color:"rgba(255,255,255,0.75)"}}>{v}</span>
               </div>
-              {s.rac_evaluation.overallFeedback&&<p style={{fontSize:"0.82rem",color:"rgba(255,255,255,0.55)",margin:0,lineHeight:"1.5"}}>{s.rac_evaluation.overallFeedback}</p>}
-            </div>}
+            ))}
+          </div>}
+          {/* RAC scores */}
+          {s.rac_evaluation&&<div>
+            <p style={S.sec}>{t.rac_eval}</p>
+            <div style={{display:"flex",gap:"0.4rem",flexWrap:"wrap",marginBottom:"0.5rem"}}>
+              <ScoreChip label="R" score={s.rac_evaluation.rScore} max={2}/>
+              <ScoreChip label="A" score={s.rac_evaluation.aScore} max={2}/>
+              <ScoreChip label="C" score={s.rac_evaluation.cScore} max={2}/>
+              <ScoreChip label="Total" score={s.rac_evaluation.totalScore} max={s.rac_evaluation.maxScore}/>
+            </div>
+            {s.rac_evaluation.overallFeedback&&<p style={{fontSize:"0.82rem",color:"rgba(255,255,255,0.55)",margin:0,lineHeight:"1.5"}}>{s.rac_evaluation.overallFeedback}</p>}
           </div>}
         </div>;
-      })}
+      })()}
     </div>
 
-    {/* Intervention report */}
+    {/* Intervention plan: groups + actions + next steps only */}
     {students.length>0&&<div style={S.card}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem",flexWrap:"wrap",gap:"0.5rem"}}>
         <h3 style={{...S.ctitle,margin:0,fontSize:"1rem"}}>{t.intervention_plan}</h3>
         {!report&&<button style={S.btn} onClick={generateReport} disabled={genReport}>
           {genReport?<span>⏳ {lang==="es"?"Generando...":"Generating..."}</span>:`🧠 ${t.generate_plan}`}
         </button>}
+        {report&&<div style={{display:"flex",gap:"0.5rem",alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:"0.72rem",color:"#81C784"}}>{t.report_saved}</span>
+          <button style={{...S.bts,fontSize:"0.72rem"}} onClick={generateReport} disabled={genReport}>{t.regen_plan}</button>
+        </div>}
       </div>
       {genReport&&<Spinner msg={t.loading_report}/>}
-      {report&&<div style={{animation:"fadeIn 0.3s ease"}}>
+      {report&&!genReport&&<div style={{animation:"fadeIn 0.3s ease"}}>
         <p style={{color:"rgba(255,255,255,0.6)",fontSize:"0.85rem",marginBottom:"1rem",lineHeight:"1.6"}}>{report.summary}</p>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.8rem",marginBottom:"1rem"}}>
-          <div style={{...S.card,margin:0,padding:"1rem"}}>
-            <p style={{...S.sec,margin:"0 0 0.5rem"}}>{t.strengths}</p>
-            {report.classStrengths?.map((s,i)=><div key={i} style={{fontSize:"0.8rem",color:"#81C784",marginBottom:"0.3rem"}}>• {s}</div>)}
-          </div>
-          <div style={{...S.card,margin:0,padding:"1rem"}}>
-            <p style={{...S.sec,margin:"0 0 0.5rem"}}>{t.gaps}</p>
-            {report.classGaps?.map((g,i)=><div key={i} style={{fontSize:"0.8rem",color:"#EF9A9A",marginBottom:"0.3rem"}}>• {g}</div>)}
-          </div>
-        </div>
         {report.interventionGroups?.map((g,i)=>{const c=pc[g.priority]||"#888";return(
           <div key={i} style={{padding:"0.9rem",borderRadius:"10px",background:"rgba(255,255,255,0.03)",border:`1px solid ${c}33`,marginBottom:"0.8rem"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:"0.4rem",flexWrap:"wrap",gap:"0.4rem"}}>
@@ -694,31 +719,32 @@ function ScaffoldingExercise({setup,level,onComplete,lang}) {
   const [step,setStep]=useState(0); const [ans,setAns]=useState({});
   useEffect(()=>{(async()=>{
     const r=await callClaude(t.sc_system,
-      `Text:"${setup.reading.substring(0,1200)}"\nObjective:"${setup.objective}"\nTEKS:"${setup.teks}"\nBloom level:${level}/6\nLanguage:${t.scaffold_lang}\n\nGenerate 4-step scaffolding. JSON:\n{"title":"","intro":"","steps":[{"title":"","instruction":"","activity":"","hint":""}]}`
+      `Text:"${setup.reading.substring(0,1200)}"\nObjective:"${setup.objective}"\nTEKS:"${setup.teks}"\nBloom level:${level}/6\nGrade:"${setup.grade||''}"\nLanguage:${t.scaffold_lang}\n\nGenerate 4-step scaffolding for a struggling young reader. Use VERY SIMPLE language, SHORT sentences (max 12 words each), warm encouraging tone, one idea at a time. Keep each instruction and activity brief so the child does not get tired reading. JSON:\n{"title":"","intro":"","steps":[{"title":"","instruction":"","activity":"","hint":""}]}`
     ,1800); setSc(r); setLoading(false);
   })();},[]);
   if(loading) return <Spinner msg={t.loading_scaffold}/>;
   const cur=sc?.steps?.[step];
   return <div>
     <div style={{...S.card,borderColor:"rgba(255,165,0,0.25)",background:"rgba(255,165,0,0.04)"}}>
-      <h2 style={{...S.ctitle,color:"#FFB74D"}}>{t.scaffold_title}</h2>
-      <p style={{color:"rgba(255,255,255,0.45)",fontSize:"0.82rem",marginTop:"-0.4rem"}}>{sc?.intro}</p>
+      <h2 style={{...S.ctitle,color:"#FFB74D",fontSize:"1.3rem"}}>{t.scaffold_title}</h2>
+      <p style={{color:"rgba(255,255,255,0.7)",fontSize:"1.05rem",marginTop:"-0.2rem",lineHeight:"1.7"}}>{sc?.intro}</p>
     </div>
     <div style={{display:"flex",gap:"0.4rem",marginBottom:"1.2rem",flexWrap:"wrap"}}>
       {sc?.steps?.map((s,i)=><div key={i} style={{flex:1,minWidth:"70px",padding:"0.45rem",borderRadius:"8px",textAlign:"center",fontSize:"0.68rem",background:i<step?"rgba(76,175,80,0.18)":i===step?"rgba(255,183,77,0.18)":"rgba(255,255,255,0.04)",border:i===step?"1px solid #FFB74D":"1px solid transparent",color:i<step?"#81C784":i===step?"#FFB74D":"rgba(255,255,255,0.28)"}}>
         {i<step?"✓":i+1}<br/><span style={{fontSize:"0.62rem"}}>{s.title}</span>
       </div>)}
     </div>
-    {cur&&<div style={S.card}>
-      <h3 style={{color:"#FFB74D",marginTop:0,fontSize:"1rem"}}>{step+1}. {cur.title}</h3>
-      <p style={{lineHeight:"1.7",marginBottom:"0.9rem",fontSize:"0.9rem"}}>{cur.instruction}</p>
-      <div style={{background:"rgba(255,255,255,0.04)",borderRadius:"8px",padding:"0.9rem 1rem",marginBottom:"0.9rem",borderLeft:"3px solid #FFB74D"}}>
-        <p style={S.sec}>{t.activity_label}</p><p style={{margin:0,fontSize:"0.88rem",lineHeight:"1.55"}}>{cur.activity}</p>
+    {cur&&<div style={{...S.card,padding:"1.6rem 1.5rem"}}>
+      <h3 style={{color:"#FFB74D",marginTop:0,fontSize:"1.4rem",marginBottom:"1rem"}}>{step+1}. {cur.title}</h3>
+      <p style={{lineHeight:"2",marginBottom:"1.3rem",fontSize:"1.18rem",color:"rgba(255,255,255,0.92)"}}>{cur.instruction}</p>
+      <div style={{background:"rgba(255,183,77,0.1)",borderRadius:"12px",padding:"1.2rem 1.3rem",marginBottom:"1.2rem",borderLeft:"5px solid #FFB74D"}}>
+        <p style={{...S.sec,fontSize:"0.8rem",marginBottom:"0.5rem"}}>{t.activity_label}</p>
+        <p style={{margin:0,fontSize:"1.15rem",lineHeight:"1.9",color:"rgba(255,255,255,0.92)"}}>{cur.activity}</p>
       </div>
-      <details style={{marginBottom:"0.9rem"}}><summary style={{cursor:"pointer",color:"rgba(255,255,255,0.42)",fontSize:"0.82rem"}}>{t.hint_label}</summary>
-        <p style={{color:"rgba(255,255,255,0.52)",fontSize:"0.82rem",marginTop:"0.4rem"}}>{cur.hint}</p></details>
-      <textarea style={{...S.ta,minHeight:"70px",marginBottom:"0.9rem"}} placeholder={t.write_here} value={ans[step]||""} onChange={e=>setAns(a=>({...a,[step]:e.target.value}))}/>
-      {step<(sc.steps.length-1)?<button style={S.btn} onClick={()=>setStep(s=>s+1)}>{t.next_step}</button>:<button style={S.btn} onClick={()=>onComplete(ans)}>{t.complete_scaffold}</button>}
+      <details style={{marginBottom:"1.2rem"}}><summary style={{cursor:"pointer",color:"#FFB74D",fontSize:"1rem",padding:"0.4rem 0"}}>{t.hint_label}</summary>
+        <p style={{color:"rgba(255,255,255,0.7)",fontSize:"1.05rem",marginTop:"0.5rem",lineHeight:"1.8"}}>{cur.hint}</p></details>
+      <textarea style={{...S.ta,minHeight:"90px",marginBottom:"1.2rem",fontSize:"1.1rem",lineHeight:"1.7",padding:"1rem"}} placeholder={t.write_here} value={ans[step]||""} onChange={e=>setAns(a=>({...a,[step]:e.target.value}))}/>
+      {step<(sc.steps.length-1)?<button style={{...S.btn,fontSize:"1.1rem",padding:"0.9rem 2rem"}} onClick={()=>setStep(s=>s+1)}>{t.next_step}</button>:<button style={{...S.btn,fontSize:"1.1rem",padding:"0.9rem 2rem"}} onClick={()=>onComplete(ans)}>{t.complete_scaffold}</button>}
     </div>}
     <div style={{...S.card,background:"rgba(255,255,255,0.02)"}}>
       <p style={S.sec}>{t.ref_text}</p>
