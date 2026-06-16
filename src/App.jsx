@@ -66,6 +66,9 @@ function sbWithToken(token) {
       const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}&limit=1`, {headers:h});
       const d = await r.json(); return Array.isArray(d)?d[0]:null;
     },
+    async update(table, id, data) {
+      await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {method:"PATCH",headers:{...h,"Prefer":"return=minimal"},body:JSON.stringify(data)});
+    },
     async delete(table, id) {
       await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {method:"DELETE",headers:h});
     },
