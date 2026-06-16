@@ -453,6 +453,9 @@ function SessionDetail({session,onBack,lang,db}) {
   const bl=getBloom(lang);
 
   useEffect(()=>{(async()=>{
+    // Reload session from Supabase to get latest intervention_report
+    const fresh = await (db||sb).selectOne("sessions", `id=eq.${session.id}`);
+    if(fresh?.intervention_report) setReport(fresh.intervention_report);
     const data=await (db||sb).select("student_results",`session_id=eq.${session.id}`,"created_at.asc");
     setStudents(Array.isArray(data)?data:[]); setLoading(false);
   })();},[session.id]);
@@ -465,7 +468,11 @@ function SessionDetail({session,onBack,lang,db}) {
     ,3000);
     setReport(r); setGenReport(false);
     // Save to Supabase so we don't regenerate (and waste AI) next time
-    if(r&&!r.raw){ try{ await (db||sb).update("sessions",session.id,{intervention_report:r}); }catch(e){} }
+    if(r&&!r.raw){ 
+      try{ 
+        await (db||sb).update("sessions",session.id,{intervention_report:r});
+      }catch(e){ console.error("Save plan error:", e); } 
+    }
   };
 
   if(loading) return <Spinner msg={t.loading_generic}/>;
