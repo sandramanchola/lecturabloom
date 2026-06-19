@@ -1,0 +1,7 @@
+tu-repo/
+  api/
+    claude.js        ← nueva carpeta en la RAÍZ del repo
+  src/
+    App.jsx
+  package.json
+  ...
