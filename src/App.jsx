@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 // ─── ⚙️  CONFIGURACIÓN — pega aquí tus credenciales de Supabase ──────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || "";
-// ⚠️ La API key de Anthropic ya NO va aquí — vive en el servidor (api/claude.js)
+const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_KEY || "";
 
 // ─── SUPABASE CLIENT (sin SDK, fetch puro) ────────────────────────────────────
 const sb = {
@@ -245,11 +245,9 @@ const getBloom = (lang) => [
 const PHASES = {TEACHER_SETUP:"ts",HISTORY:"hi",SESSION_DETAIL:"sd",STUDENT_INTRO:"si",STUDENT_CODE:"sc2",QUESTIONS:"q",SCAFFOLDING:"sc",EXIT_TICKET:"et",RESULTS:"r",TEACHER_REPORT:"tr"};
 
 async function callClaude(sys, user, max=2000) {
-  // ✅ Proxy de Vercel — la API key nunca sale del servidor
-  const res = await fetch("/api/claude", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({system:sys, user, max_tokens:max}),
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST", headers:{"Content-Type":"application/json","x-api-key":ANTHROPIC_KEY,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:max,system:sys,messages:[{role:"user",content:user}]}),
   });
   const d = await res.json();
   const raw = d.content?.map(b=>b.text||"").join("\n")||"";
@@ -697,28 +695,10 @@ function StudentIntro({setup,onStart,lang,loading}) {
 }
 
 // ─── QUESTION CARD ────────────────────────────────────────────────────────────
-// Normaliza la respuesta correcta: Claude a veces devuelve "B" y otras "B. texto completo"
-function resolveCorrect(options, correct) {
-  if (!correct) return null;
-  const c = correct.trim();
-  // Si es solo una letra (A, B, C, D) busca la opción correspondiente
-  if (/^[A-Da-d]$/.test(c)) {
-    const idx = c.toUpperCase().charCodeAt(0) - 65; // A=0, B=1...
-    return options[idx] ?? null;
-  }
-  // Si empieza con "A." / "B." etc., quita el prefijo y busca por texto
-  const withoutPrefix = c.replace(/^[A-Da-d][.)]\s*/,"").trim().toLowerCase();
-  return options.find(o => o.trim().toLowerCase() === withoutPrefix)
-    ?? options.find(o => o.trim().toLowerCase().startsWith(withoutPrefix.substring(0,20)))
-    ?? c; // fallback: comparación directa
-}
-
 function QuestionCard({question,index,total,onAnswer,bloomLevel,lang}) {
   const t=T[lang]; const bl=getBloom(lang)[bloomLevel-1]||getBloom(lang)[0];
   const [sel,setSel]=useState(null); const [rev,setRev]=useState(false);
-  // ✅ Usar resolveCorrect para manejar cuando Claude devuelve letra o texto completo
-  const correctOpt = resolveCorrect(question.options, question.correct);
-  const ok=sel===correctOpt;
+  const ok=sel===question.correct;
   return <div style={S.card}>
     <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"0.6rem",flexWrap:"wrap",gap:"0.4rem"}}>
@@ -731,7 +711,7 @@ function QuestionCard({question,index,total,onAnswer,bloomLevel,lang}) {
     <div style={S.pbar}><div style={S.pfill((index/total)*100,bl.accent)}/></div>
     <p style={{fontSize:"0.97rem",lineHeight:"1.75",margin:"1rem 0"}}>{question.question}</p>
     <div>{question.options.map((opt,i)=>(
-      <button key={i} style={S.optBtn(sel===opt,opt===correctOpt,rev)} onClick={()=>!rev&&setSel(opt)}>
+      <button key={i} style={S.optBtn(sel===opt,opt===question.correct,rev)} onClick={()=>!rev&&setSel(opt)}>
         <span style={{fontWeight:"600",marginRight:"0.45rem",opacity:0.45}}>{String.fromCharCode(65+i)}.</span>{opt}
       </button>
     ))}</div>
@@ -953,7 +933,7 @@ export default function App() {
     setQLoading(true);
     const tl=T[lang];
     const r=await callClaude(tl.q_system,
-      `Text:"${setup.reading.substring(0,1400)}"\nObjective:"${setup.objective}"\nTEKS:"${setup.teks}"\nGrade:"${setup.grade}"\nLanguage:${tl.qlang}\n\nGenerate 6 STAAR-aligned questions, one per Bloom level. staarType options: "main idea","inference","vocabulary in context","text structure","author's purpose","literary device","supporting detail". CRITICAL: the "correct" field must be the EXACT FULL TEXT of the correct option, copied verbatim from the options array. JSON:\n{"questions":[{"bloomLevel":1,"staarType":"main idea","question":"","options":["","","",""],"correct":"<exact text of correct option>","explanation":""}]}`
+      `Text:"${setup.reading.substring(0,1400)}"\nObjective:"${setup.objective}"\nTEKS:"${setup.teks}"\nGrade:"${setup.grade}"\nLanguage:${tl.qlang}\n\nGenerate 6 STAAR-aligned questions, one per Bloom level. staarType options: "main idea","inference","vocabulary in context","text structure","author's purpose","literary device","supporting detail". JSON:\n{"questions":[{"bloomLevel":1,"staarType":"main idea","question":"","options":["","","",""],"correct":"","explanation":""}]}`
     ,2500);
     setQuestions(r.questions||[]); setQLoading(false); setPhase(PHASES.QUESTIONS);
   };
