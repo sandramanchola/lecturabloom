@@ -1001,7 +1001,8 @@ export default function App() {
     <div style={S.hdr}><h1 style={S.htitle}>{t.appName}</h1><LangToggle lang={lang} setLang={setLang}/></div>
     <div style={{maxWidth:"620px",margin:"0 auto",padding:"3.5rem 1rem",textAlign:"center",animation:"fadeUp 0.5s ease"}}>
       <div style={{fontSize:"3.5rem",marginBottom:"0.8rem"}}>📖</div>
-      <h1 style={{fontSize:"1.9rem",color:"#f9d56e",fontWeight:"700",margin:"0 0 0.4rem"}}>{t.appName}</h1>
+      <h1 style={{fontSize:"1.9rem",color:"#f9d56e",fontWeight:"700",margin:"0 0 0.2rem"}}>{t.appName}</h1>
+      <p style={{color:"rgba(255,255,255,0.55)",fontSize:"0.85rem",fontStyle:"italic",margin:"0 0 0.5rem",letterSpacing:"0.02em"}}>by Sandra Manchola</p>
       <p style={{color:"rgba(255,255,255,0.42)",fontSize:"0.9rem",marginBottom:"2.5rem",lineHeight:"1.7"}}>{t.tagline}</p>
       <div style={{display:"flex",gap:"0.9rem",justifyContent:"center",flexWrap:"wrap"}}>
         <button style={{...S.btn,fontSize:"0.95rem",padding:"0.9rem 2.2rem"}} onClick={()=>teacher?setMode("teacher"):setMode("teacher_login")}>{t.iam_teacher}</button>
