@@ -49,6 +49,21 @@ const auth = {
       method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":`Bearer ${token}`}
     });
   },
+  async resetPasswordForEmail(email) {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+      method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY},
+      body:JSON.stringify({email, options:{redirect_to: window.location.origin}})
+    });
+    if (!r.ok) return { error: await r.json() };
+    return { success: true };
+  },
+  async updateUserPassword(accessToken, newPassword) {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method:"PUT", headers:{"Content-Type":"application/json","apikey":SUPABASE_KEY,"Authorization":`Bearer ${accessToken}`},
+      body:JSON.stringify({password:newPassword})
+    });
+    return r.json();
+  },
 };
 
 function sbWithToken(token) {
@@ -135,7 +150,9 @@ const T = {
     no_data:"Aún no hay datos de estudiantes.", loading_report:"Generando plan de intervención...",
     teacher_not_set:"El docente aún no ha configurado la lectura.",
     // Session detail
-    session_detail:"Detalle de Sesión", back_history:"← Historial", student_detail:"Detalle del Estudiante",
+    session_detail:"Detalle de Sesión", back_history:"← Historial", student_detail:"Detalle del Estudiante", export_csv:"Exportar CSV",
+    report_error:"No se pudo generar el plan. Intenta de nuevo en un momento.",
+    report_timeout:"La IA tardó demasiado en responder. Intenta de nuevo.",
     bloom_score:"Nivel Bloom", exit_result:"Tiquete de Salida", scaffolding_needed:"Necesitó Escalofoneo",
     perf_great:"Va muy bien", perf_progress:"En progreso", perf_support:"Necesita apoyo",
     tap_student:"Toca a un estudiante para ver su detalle", ind_strengths:"💪 Fortalezas", ind_weaknesses:"📈 A trabajar",
@@ -151,6 +168,14 @@ const T = {
     signup_title:"Crear cuenta", login_tab:"Iniciar sesión", signup_tab:"Registrarse",
     email_label:"Correo electrónico", email_placeholder:"tu@correo.com",
     password_label:"Contraseña", password_placeholder:"Mínimo 6 caracteres",
+    forgot_password_link:"¿Olvidaste tu contraseña?",
+    forgot_title:"Recuperar contraseña", forgot_sub:"Te enviaremos un enlace a tu correo",
+    reset_email_sent:"Revisa tu correo para el enlace de recuperación",
+    send_reset_link:"Enviar enlace", sending:"Enviando...", back_to_login:"Volver a iniciar sesión",
+    reset_title:"Nueva contraseña", reset_sub:"Escribe tu nueva contraseña",
+    new_password_label:"Nueva contraseña", confirm_password_label:"Confirmar contraseña",
+    update_password_btn:"Actualizar contraseña", password_updated:"¡Contraseña actualizada! Redirigiendo...",
+    password_too_short:"La contraseña debe tener al menos 6 caracteres", passwords_dont_match:"Las contraseñas no coinciden",
     login_btn:"Entrar →", signup_btn:"Crear cuenta →",
     logging_in:"Entrando...", signing_up:"Creando cuenta...",
     logout_btn:"Cerrar sesión", welcome_teacher:"Bienvenida/o",
@@ -207,7 +232,9 @@ const T = {
     immediate_actions:"⚡ Immediate Actions", next_steps:"📅 Next Steps",
     no_data:"No student data yet.", loading_report:"Generating intervention plan...",
     teacher_not_set:"The teacher hasn't set up the reading yet.",
-    session_detail:"Session Detail", back_history:"← History", student_detail:"Student Detail",
+    session_detail:"Session Detail", back_history:"← History", student_detail:"Student Detail", export_csv:"Export CSV",
+    report_error:"Couldn't generate the plan. Please try again in a moment.",
+    report_timeout:"The AI took too long to respond. Please try again.",
     bloom_score:"Bloom Level", exit_result:"Exit Ticket", scaffolding_needed:"Needed Scaffolding",
     perf_great:"Doing great", perf_progress:"In progress", perf_support:"Needs support",
     tap_student:"Tap a student to see their detail", ind_strengths:"💪 Strengths", ind_weaknesses:"📈 To work on",
@@ -222,6 +249,14 @@ const T = {
     signup_title:"Create account", login_tab:"Sign in", signup_tab:"Sign up",
     email_label:"Email", email_placeholder:"your@email.com",
     password_label:"Password", password_placeholder:"At least 6 characters",
+    forgot_password_link:"Forgot your password?",
+    forgot_title:"Recover password", forgot_sub:"We'll send a link to your email",
+    reset_email_sent:"Check your email for the recovery link",
+    send_reset_link:"Send link", sending:"Sending...", back_to_login:"Back to login",
+    reset_title:"New password", reset_sub:"Enter your new password",
+    new_password_label:"New password", confirm_password_label:"Confirm password",
+    update_password_btn:"Update password", password_updated:"Password updated! Redirecting...",
+    password_too_short:"Password must be at least 6 characters", passwords_dont_match:"Passwords don't match",
     login_btn:"Enter →", signup_btn:"Create account →",
     logging_in:"Signing in...", signing_up:"Creating account...",
     logout_btn:"Sign out", welcome_teacher:"Welcome",
@@ -251,9 +286,21 @@ async function callClaude(sys, user, max=2000) {
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({system:sys, user, max_tokens:max}),
   });
-  const d = await res.json();
+  // Leer como texto primero: si Vercel corta por tiempo (504) devuelve HTML, no JSON
+  let d;
+  try {
+    const txt = await res.text();
+    try { d = JSON.parse(txt); }
+    catch { return {raw:"", error: res.status===504 ? "timeout" : `HTTP ${res.status}`}; }
+  } catch { return {raw:"", error:"network"}; }
+  if (!res.ok || d.error) return {raw:"", error: d.error || `HTTP ${res.status}`};
   const raw = d.content?.map(b=>b.text||"").join("\n")||"";
-  try { return JSON.parse(raw.replace(/```json|```/g,"").trim()); } catch { return {raw}; }
+  const clean = raw.replace(/```json|```/g,"").trim();
+  try { return JSON.parse(clean); } catch {}
+  // Si la IA agregó texto antes/después del JSON, extraer solo el bloque { ... }
+  const a = clean.indexOf("{"), b = clean.lastIndexOf("}");
+  if (a>-1 && b>a) { try { return JSON.parse(clean.slice(a,b+1)); } catch {} }
+  return {raw, error: d.stop_reason==="max_tokens" ? "truncated" : "bad_json"};
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
@@ -326,6 +373,7 @@ function TeacherLogin({onLogin, lang}) {
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
   const [success,setSuccess]=useState("");
+  const [forgot,setForgot]=useState(false);
 
   const handle=async()=>{
     if(!email||!password) return;
@@ -338,6 +386,34 @@ function TeacherLogin({onLogin, lang}) {
     if(tab==="signup") { setSuccess(t.confirm_email); return; }
     if(res.access_token) onLogin({token:res.access_token, email:res.user?.email||email});
   };
+
+  const handleForgot=async()=>{
+    if(!email) return;
+    setLoading(true); setError(""); setSuccess("");
+    const res = await auth.resetPasswordForEmail(email);
+    setLoading(false);
+    if(res.error) { setError(t.auth_error); return; }
+    setSuccess(t.reset_email_sent);
+  };
+
+  if(forgot) return <div style={{maxWidth:"420px",margin:"3rem auto",padding:"0 1rem"}}>
+    <div style={S.card}>
+      <h2 style={{...S.ctitle,justifyContent:"center"}}>{t.forgot_title}</h2>
+      <p style={{color:"rgba(255,255,255,0.45)",fontSize:"0.82rem",textAlign:"center",marginTop:"-0.5rem",marginBottom:"1.5rem"}}>{t.forgot_sub}</p>
+      <div style={{marginBottom:"1.3rem"}}>
+        <label style={S.lbl}>{t.email_label}</label>
+        <input style={S.inp} type="email" placeholder={t.email_placeholder} value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleForgot()}/>
+      </div>
+      {error&&<p style={{color:"#EF9A9A",fontSize:"0.82rem",marginBottom:"0.8rem",textAlign:"center"}}>{error}</p>}
+      {success&&<p style={{color:"#81C784",fontSize:"0.82rem",marginBottom:"0.8rem",textAlign:"center"}}>{success}</p>}
+      <button style={{...S.btn,width:"100%",opacity:(!email||loading)?0.45:1}}
+        onClick={handleForgot} disabled={!email||loading}>
+        {loading?t.sending:t.send_reset_link}
+      </button>
+      <button style={{...S.bts,width:"100%",marginTop:"0.8rem",justifyContent:"center"}}
+        onClick={()=>{setForgot(false);setError("");setSuccess("");}}>{t.back_to_login}</button>
+    </div>
+  </div>;
 
   return <div style={{maxWidth:"420px",margin:"3rem auto",padding:"0 1rem"}}>
     <div style={S.card}>
@@ -358,10 +434,15 @@ function TeacherLogin({onLogin, lang}) {
         <label style={S.lbl}>{t.email_label}</label>
         <input style={S.inp} type="email" placeholder={t.email_placeholder} value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}/>
       </div>
-      <div style={{marginBottom:"1.3rem"}}>
+      <div style={{marginBottom:"0.5rem"}}>
         <label style={S.lbl}>{t.password_label}</label>
         <input style={S.inp} type="password" placeholder={t.password_placeholder} value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}/>
       </div>
+      {tab==="login"&&<div style={{textAlign:"right",marginBottom:"1rem"}}>
+        <button style={{background:"none",border:"none",color:"rgba(255,255,255,0.4)",fontSize:"0.78rem",cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}
+          onClick={()=>{setForgot(true);setError("");setSuccess("");}}>{t.forgot_password_link}</button>
+      </div>}
+      {tab==="signup"&&<div style={{marginBottom:"1rem"}}/>}
 
       {error&&<p style={{color:"#EF9A9A",fontSize:"0.82rem",marginBottom:"0.8rem",textAlign:"center"}}>{error}</p>}
       {success&&<p style={{color:"#81C784",fontSize:"0.82rem",marginBottom:"0.8rem",textAlign:"center"}}>{success}</p>}
@@ -410,14 +491,16 @@ function TeacherSetup({onSubmit,onHistory,lang}) {
 }
 
 // ─── HISTORY LIST ─────────────────────────────────────────────────────────────
-function HistoryList({onSelect,onNew,lang,db}) {
+function HistoryList({onSelect,onNew,lang,db,teacherEmail}) {
   const t=T[lang];
   const [sessions,setSessions]=useState([]);
   const [loading,setLoading]=useState(true);
   useEffect(()=>{(async()=>{
-    const data=await (db||sb).select("sessions","","created_at.desc");
+    // ✅ Filtrado por docente — antes traía TODAS las sesiones de TODOS los docentes
+    const filter = teacherEmail ? `teacher_email=eq.${encodeURIComponent(teacherEmail)}` : "";
+    const data=await (db||sb).select("sessions",filter,"created_at.desc");
     setSessions(Array.isArray(data)?data:[]); setLoading(false);
-  })();},[db]);
+  })();},[db,teacherEmail]);
   if(loading) return <Spinner msg={t.history_loading}/>;
   return <div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1.2rem",flexWrap:"wrap",gap:"0.5rem"}}>
@@ -448,35 +531,48 @@ function HistoryList({onSelect,onNew,lang,db}) {
 }
 
 // ─── SESSION DETAIL ────────────────────────────────────────────────────────────
+// Un plan solo es válido si trae grupos de intervención (evita mostrar/guardar planes vacíos)
+const isValidReport = r => !!(r && !r.error && Array.isArray(r.interventionGroups) && r.interventionGroups.length);
+
 function SessionDetail({session,onBack,lang,db}) {
   const t=T[lang];
   const [students,setStudents]=useState([]);
   const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState(null);
-  const [report,setReport]=useState(session.intervention_report||null);
+  const [report,setReport]=useState(isValidReport(session.intervention_report)?session.intervention_report:null);
   const [genReport,setGenReport]=useState(false);
+  const [reportError,setReportError]=useState("");
   const bl=getBloom(lang);
 
   useEffect(()=>{(async()=>{
     // Reload session from Supabase to get latest intervention_report
     const fresh = await (db||sb).selectOne("sessions", `id=eq.${session.id}`);
-    if(fresh?.intervention_report) setReport(fresh.intervention_report);
+    if(isValidReport(fresh?.intervention_report)) setReport(fresh.intervention_report);
     const data=await (db||sb).select("student_results",`session_id=eq.${session.id}`,"created_at.asc");
     setStudents(Array.isArray(data)?data:[]); setLoading(false);
   })();},[session.id]);
 
   const generateReport=async()=>{
-    setGenReport(true);
-    const sum=students.map(s=>`${s.student_name}: Bloom ${s.bloom_score}/6, exit ${s.exit_correct?"correct":"incorrect"}, scaffolding ${s.needed_scaffolding?"yes":"no"}`).join("\n");
-    const r=await callClaude(t.rep_system,
-      `Objective:"${session.objective}"\nTEKS:"${session.teks}"\nLanguage:${t.scaffold_lang}\nStudents:\n${sum}\n\nFor EACH student provide individual strengths and areas to work on. Then group students for intervention. JSON:\n{"summary":"","studentAnalysis":[{"name":"","strengths":["",""],"weaknesses":["",""]}],"interventionGroups":[{"groupName":"","students":[],"bloomRange":"","priority":"high|medium|low","focus":"","strategies":[],"suggestedActivities":[]}],"immediateActions":[],"nextSteps":""}`
-    ,3000);
-    setReport(r); setGenReport(false);
-    // Save to Supabase so we don't regenerate (and waste AI) next time
-    if(r&&!r.raw){ 
-      try{ 
-        await (db||sb).update("sessions",session.id,{intervention_report:r});
-      }catch(e){ console.error("Save plan error:", e); } 
+    setGenReport(true); setReportError("");
+    try {
+      const sum=students.map(s=>`${s.student_name}: Bloom ${s.bloom_score}/6, exit ${s.exit_correct?"correct":"incorrect"}, scaffolding ${s.needed_scaffolding?"yes":"no"}`).join("\n");
+      const r=await callClaude(t.rep_system,
+        `Objective:"${session.objective}"\nTEKS:"${session.teks}"\nLanguage:${t.scaffold_lang}\nStudents:\n${sum}\n\nFor EACH student provide individual strengths and areas to work on. Then group students for intervention. Be CONCISE: max 12 words per strength, weakness, strategy or activity; max 3 strategies and 3 activities per group. JSON:\n{"summary":"","studentAnalysis":[{"name":"","strengths":["",""],"weaknesses":["",""]}],"interventionGroups":[{"groupName":"","students":[],"bloomRange":"","priority":"high|medium|low","focus":"","strategies":[],"suggestedActivities":[]}],"immediateActions":[],"nextSteps":""}`
+      ,4000);
+      if(!isValidReport(r)){
+        console.error("Plan de intervención no válido:", r);
+        setReportError(r?.error==="timeout"?t.report_timeout:t.report_error);
+        return; // conserva el plan anterior si existía
+      }
+      setReport(r);
+      // Guardar en Supabase para no regenerar (y gastar IA) la próxima vez
+      try{ await (db||sb).update("sessions",session.id,{intervention_report:r}); }
+      catch(e){ console.error("Save plan error:", e); }
+    } catch(e) {
+      console.error("Error generando plan:", e);
+      setReportError(t.report_error);
+    } finally {
+      setGenReport(false);
     }
   };
 
@@ -484,8 +580,35 @@ function SessionDetail({session,onBack,lang,db}) {
 
   const pc={alta:"#F44336",high:"#F44336",media:"#FF9800",medium:"#FF9800",baja:"#4CAF50",low:"#4CAF50"};
 
+  // ✅ Exportar CSV — sesión + resultados de estudiantes
+  const exportCSV=()=>{
+    const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+    const headers=["student_name","lang","bloom_score","exit_correct","needed_scaffolding","rac_response","created_at"];
+    const rows=students.map(s=>headers.map(h=>esc(s[h])).join(","));
+    const meta=[
+      `Session,${esc(session.session_name||"")}`,
+      `Date,${esc(fmt(session.created_at))}`,
+      `Grade,${esc(session.grade||"")}`,
+      `TEKS,${esc(session.teks||"")}`,
+      `Teacher,${esc(session.teacher_email||"")}`,
+      `Students,${esc(students.length)}`,
+      "",
+    ].join("\n");
+    const csv = meta + headers.join(",") + "\n" + rows.join("\n");
+    const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(session.session_name||"session").replace(/[^a-z0-9]/gi,"_")}_${session.created_at?.slice(0,10)||"export"}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return <div>
-    <button style={{...S.bts,marginBottom:"1rem"}} onClick={onBack}>{t.back_history}</button>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1rem",flexWrap:"wrap",gap:"0.5rem"}}>
+      <button style={S.bts} onClick={onBack}>{t.back_history}</button>
+      <button style={{...S.bts,opacity:students.length?1:0.4}} onClick={exportCSV} disabled={!students.length}>⬇️ {t.export_csv}</button>
+    </div>
 
     {/* Session header */}
     <div style={{...S.card,background:"rgba(33,150,243,0.07)",borderColor:"rgba(33,150,243,0.25)"}}>
@@ -593,6 +716,7 @@ function SessionDetail({session,onBack,lang,db}) {
         </div>}
       </div>
       {genReport&&<Spinner msg={t.loading_report}/>}
+      {reportError&&!genReport&&<p style={{color:"#EF9A9A",fontSize:"0.82rem",textAlign:"center",margin:"0.5rem 0 1rem"}}>⚠️ {reportError}</p>}
       {report&&!genReport&&<div style={{animation:"fadeIn 0.3s ease"}}>
         <p style={{color:"rgba(255,255,255,0.6)",fontSize:"0.85rem",marginBottom:"1rem",lineHeight:"1.6"}}>{report.summary}</p>
         {report.interventionGroups?.map((g,i)=>{const c=pc[g.priority]||"#888";return(
@@ -913,10 +1037,69 @@ function StudentResults({studentName,bloomScore,exitCorrect,lang}) {
   </div>;
 }
 
+// ─── RESET PASSWORD (catches Supabase recovery link) ─────────────────────────
+function ResetPassword({accessToken, lang, onDone}) {
+  const t=T[lang];
+  const [password,setPassword]=useState("");
+  const [confirm,setConfirm]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+  const [success,setSuccess]=useState("");
+
+  const handle=async()=>{
+    if(!password||password.length<6) { setError(t.password_too_short); return; }
+    if(password!==confirm) { setError(t.passwords_dont_match); return; }
+    setLoading(true); setError(""); setSuccess("");
+    const res = await auth.updateUserPassword(accessToken, password);
+    setLoading(false);
+    if(res.error||res.msg) { setError(t.auth_error); return; }
+    setSuccess(t.password_updated);
+    setTimeout(()=>onDone(), 1800);
+  };
+
+  return <div style={{maxWidth:"420px",margin:"3rem auto",padding:"0 1rem"}}>
+    <div style={S.card}>
+      <h2 style={{...S.ctitle,justifyContent:"center"}}>{t.reset_title}</h2>
+      <p style={{color:"rgba(255,255,255,0.45)",fontSize:"0.82rem",textAlign:"center",marginTop:"-0.5rem",marginBottom:"1.5rem"}}>{t.reset_sub}</p>
+      <div style={{marginBottom:"1rem"}}>
+        <label style={S.lbl}>{t.new_password_label}</label>
+        <input style={S.inp} type="password" placeholder={t.password_placeholder} value={password} onChange={e=>setPassword(e.target.value)}/>
+      </div>
+      <div style={{marginBottom:"1.3rem"}}>
+        <label style={S.lbl}>{t.confirm_password_label}</label>
+        <input style={S.inp} type="password" placeholder={t.password_placeholder} value={confirm} onChange={e=>setConfirm(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handle()}/>
+      </div>
+      {error&&<p style={{color:"#EF9A9A",fontSize:"0.82rem",marginBottom:"0.8rem",textAlign:"center"}}>{error}</p>}
+      {success&&<p style={{color:"#81C784",fontSize:"0.82rem",marginBottom:"0.8rem",textAlign:"center"}}>{success}</p>}
+      <button style={{...S.btn,width:"100%",opacity:(!password||!confirm||loading)?0.45:1}}
+        onClick={handle} disabled={!password||!confirm||loading}>
+        {loading?t.sending:t.update_password_btn}
+      </button>
+    </div>
+  </div>;
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [lang,setLang]=useState("es");
   const [mode,setMode]=useState("landing");  // landing | teacher | student | ready
+  const [recoveryToken,setRecoveryToken]=useState(null);
+
+  // Detect Supabase password-recovery redirect (#access_token=...&type=recovery)
+  useEffect(()=>{
+    const hash = window.location.hash;
+    if (hash && hash.includes("type=recovery")) {
+      const params = new URLSearchParams(hash.replace("#",""));
+      const token = params.get("access_token");
+      if (token) {
+        setRecoveryToken(token);
+        setMode("reset_password");
+        // clean the URL so the token doesn't linger in history/address bar
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    }
+  }, []);
+
   const [phase,setPhase]=useState(PHASES.TEACHER_SETUP);
   const [setup,setSetup]=useState(null);
   const [sessionId,setSessionId]=useState(null);
@@ -996,6 +1179,12 @@ export default function App() {
   </div>;
 
   // ── LANDING ──
+  // ── PASSWORD RESET (from Supabase recovery email link) ──
+  if(mode==="reset_password") return <div style={S.app}><style>{css}</style>
+    <div style={S.hdr}><h1 style={S.htitle}>{t.appName}</h1><LangToggle lang={lang} setLang={setLang}/></div>
+    <ResetPassword accessToken={recoveryToken} lang={lang} onDone={()=>{setRecoveryToken(null);setMode("teacher_login");}}/>
+  </div>;
+
   if(mode==="landing") return <div style={S.app}>
     <style>{css}</style>
     <div style={S.hdr}><h1 style={S.htitle}>{t.appName}</h1><LangToggle lang={lang} setLang={setLang}/></div>
@@ -1032,7 +1221,7 @@ export default function App() {
     </div>
     <div style={S.main}>
       {activeCode&&<ActiveCodeDisplay code={activeCode} lang={lang} onClose={()=>{setActiveCode(null);setPhase(PHASES.HISTORY);}}/>}
-      {!activeCode&&phase===PHASES.HISTORY&&<HistoryList lang={lang} db={sbd||sb}
+      {!activeCode&&phase===PHASES.HISTORY&&<HistoryList lang={lang} db={sbd||sb} teacherEmail={teacher?.email}
         onSelect={s=>{setSelectedSession(s);setPhase(PHASES.SESSION_DETAIL);}}
         onNew={()=>setPhase(PHASES.TEACHER_SETUP)}/>}
       {!activeCode&&phase===PHASES.SESSION_DETAIL&&selectedSession&&<SessionDetail session={selectedSession} lang={lang} db={sbd||sb}
