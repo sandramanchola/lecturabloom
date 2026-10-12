@@ -3,6 +3,9 @@ import { useState, useEffect, useCallback } from "react";
 // ─── ⚙️  CONFIGURACIÓN — pega aquí tus credenciales de Supabase ──────────────
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || "";
+// 👑 Cuentas con vista de administradora (pueden ver las sesiones de todas las docentes)
+const ADMIN_EMAILS = ["sandramanchola@gmail.com"];
+const isAdminEmail = email => !!email && ADMIN_EMAILS.includes(email.trim().toLowerCase());
 // ⚠️ La API key de Anthropic ya NO va aquí — vive en el servidor (api/claude.js)
 
 // ─── SUPABASE CLIENT (sin SDK, fetch puro) ────────────────────────────────────
@@ -113,6 +116,8 @@ const T = {
     steps:["Docente — Configura texto, TEKS y objetivo.","Clase — Escalofoneo inicial con estudiantes.","Estudiante — Preguntas de opción múltiple escaladas por Bloom.","IA — Diagnóstica y personaliza.","Tiquete RAC — Respuesta construida guiada.","Historial — Accede a sesiones anteriores siempre."],
     // History
     history_title:"📅 Historial de Sesiones", history_empty:"No hay sesiones anteriores.",
+    admin_label:"Administradora", admin_mine:"Mis sesiones", admin_all:"Todas las docentes",
+    admin_all_teachers:"Todas las docentes", admin_sessions_count:"sesiones",
     history_loading:"Cargando historial...", session_of:"Sesión del", students_count:"estudiantes",
     view_session:"Ver sesión →", new_session:"+ Nueva Sesión",
     session_code_label:"Código de Sesión", session_code_sub:"Comparte este código con tus estudiantes",
@@ -202,6 +207,8 @@ const T = {
     how_works:"How does it work?",
     steps:["Teacher — Set text, TEKS, and objective.","Class — Initial scaffolding with students.","Student — Multiple-choice questions scaled by Bloom.","AI — Diagnoses and personalizes.","RAC Ticket — Guided constructed response.","History — Access past sessions anytime."],
     history_title:"📅 Session History", history_empty:"No past sessions.",
+    admin_label:"Admin", admin_mine:"My sessions", admin_all:"All teachers",
+    admin_all_teachers:"All teachers", admin_sessions_count:"sessions",
     history_loading:"Loading history...", session_of:"Session from", students_count:"students",
     view_session:"View session →", new_session:"+ New Session",
     session_code_label:"Session Code", session_code_sub:"Share this code with your students",
@@ -493,27 +500,51 @@ function TeacherSetup({onSubmit,onHistory,lang}) {
 // ─── HISTORY LIST ─────────────────────────────────────────────────────────────
 function HistoryList({onSelect,onNew,lang,db,teacherEmail}) {
   const t=T[lang];
+  const isAdmin=isAdminEmail(teacherEmail);
   const [sessions,setSessions]=useState([]);
   const [loading,setLoading]=useState(true);
+  const [viewAll,setViewAll]=useState(false);        // 👑 solo administradora
+  const [teacherFilter,setTeacherFilter]=useState(""); // 👑 filtrar por docente
   useEffect(()=>{(async()=>{
-    // ✅ Filtrado por docente — antes traía TODAS las sesiones de TODOS los docentes
-    const filter = teacherEmail ? `teacher_email=eq.${encodeURIComponent(teacherEmail)}` : "";
+    setLoading(true);
+    // ✅ Cada docente ve solo sus sesiones; la administradora puede ver todas
+    const filter = (isAdmin&&viewAll) ? "" : (teacherEmail ? `teacher_email=eq.${encodeURIComponent(teacherEmail)}` : "");
     const data=await (db||sb).select("sessions",filter,"created_at.desc");
     setSessions(Array.isArray(data)?data:[]); setLoading(false);
-  })();},[db,teacherEmail]);
+  })();},[db,teacherEmail,viewAll]);
   if(loading) return <Spinner msg={t.history_loading}/>;
+  const showAll=isAdmin&&viewAll;
+  const teachers=[...new Set(sessions.map(s=>s.teacher_email).filter(Boolean))].sort();
+  const visible=showAll&&teacherFilter ? sessions.filter(s=>s.teacher_email===teacherFilter) : sessions;
+  const isMine=s=>(s.teacher_email||"").toLowerCase()===(teacherEmail||"").toLowerCase();
   return <div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1.2rem",flexWrap:"wrap",gap:"0.5rem"}}>
       <h2 style={{...S.ctitle,margin:0}}>{t.history_title}</h2>
       <button style={S.btn} onClick={onNew}>{t.new_session}</button>
     </div>
-    {sessions.length===0&&<div style={S.card}><p style={{textAlign:"center",color:"rgba(255,255,255,0.35)",margin:0}}>{t.history_empty}</p></div>}
-    {sessions.map(s=>(
+    {isAdmin&&<div style={{display:"flex",gap:"0.5rem",alignItems:"center",flexWrap:"wrap",marginBottom:"1rem",padding:"0.6rem 0.8rem",borderRadius:"10px",background:"rgba(249,213,110,0.06)",border:"1px solid rgba(249,213,110,0.2)"}}>
+      <span style={{fontSize:"0.75rem",color:"#f9d56e",fontWeight:"700"}}>👑 {t.admin_label}</span>
+      <div style={{display:"flex",gap:"0.3rem",background:"rgba(255,255,255,0.05)",borderRadius:"8px",padding:"0.2rem"}}>
+        {[[false,t.admin_mine],[true,t.admin_all]].map(([val,label])=>(
+          <button key={String(val)} onClick={()=>{setViewAll(val);setTeacherFilter("");}}
+            style={{padding:"0.3rem 0.7rem",borderRadius:"6px",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"0.78rem",fontWeight:viewAll===val?"700":"400",background:viewAll===val?"rgba(249,213,110,0.2)":"transparent",color:viewAll===val?"#f9d56e":"rgba(255,255,255,0.5)"}}>{label}</button>
+        ))}
+      </div>
+      {showAll&&<select value={teacherFilter} onChange={e=>setTeacherFilter(e.target.value)}
+        style={{...S.inp,width:"auto",padding:"0.35rem 0.6rem",fontSize:"0.78rem",margin:0}}>
+        <option value="">{t.admin_all_teachers} ({teachers.length})</option>
+        {teachers.map(e=><option key={e} value={e}>{e}</option>)}
+      </select>}
+      {showAll&&<span style={{fontSize:"0.75rem",color:"rgba(255,255,255,0.4)"}}>{visible.length} {t.admin_sessions_count}</span>}
+    </div>}
+    {visible.length===0&&<div style={S.card}><p style={{textAlign:"center",color:"rgba(255,255,255,0.35)",margin:0}}>{t.history_empty}</p></div>}
+    {visible.map(s=>(
       <div key={s.id} style={S.histCard} onClick={()=>onSelect(s)}
         onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.09)"}
         onMouseLeave={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}>
         <div>
           <div style={{fontWeight:"700",color:"#f9d56e",marginBottom:"0.25rem"}}>{s.session_name||`${t.session_of} ${fmt(s.created_at)}`}</div>
+          {showAll&&<div style={{fontSize:"0.75rem",color:"#64B5F6",marginBottom:"0.2rem"}}>👩‍🏫 {s.teacher_email||"—"}</div>}
           <div style={{fontSize:"0.78rem",color:"rgba(255,255,255,0.4)"}}>{s.grade&&`${s.grade} · `}{s.teks}</div>
           <div style={{fontSize:"0.78rem",color:"rgba(255,255,255,0.5)",marginTop:"0.2rem",maxWidth:"480px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.objective}</div>
         </div>
@@ -522,7 +553,7 @@ function HistoryList({onSelect,onNew,lang,db,teacherEmail}) {
           {s.session_code&&<span style={{fontSize:"1.1rem",fontWeight:"900",color:"#f9d56e",letterSpacing:"0.1em"}}>{s.session_code}</span>}
           <div style={{display:"flex",gap:"0.4rem"}}>
             <span style={{...S.pill("#64B5F6")}}>{t.view_session}</span>
-            <span style={{...S.pill("#EF9A9A"),cursor:"pointer"}} onClick={e=>{e.stopPropagation();if(window.confirm(t.confirm_delete)){sb.delete("sessions",s.id);setSessions(p=>p.filter(x=>x.id!==s.id));}}}>{t.delete_session}</span>
+            {isMine(s)&&<span style={{...S.pill("#EF9A9A"),cursor:"pointer"}} onClick={e=>{e.stopPropagation();if(window.confirm(t.confirm_delete)){sb.delete("sessions",s.id);setSessions(p=>p.filter(x=>x.id!==s.id));}}}>{t.delete_session}</span>}
           </div>
         </div>
       </div>
@@ -1212,7 +1243,7 @@ export default function App() {
   // ── TEACHER ──
   if(mode==="teacher") return <div style={S.app}><style>{css}</style>
     <div style={S.hdr}>
-      <div><h1 style={S.htitle}>{t.appName}</h1><p style={S.hsub}>{teacher?.email||t.teacher_panel}</p></div>
+      <div><h1 style={S.htitle}>{t.appName}</h1><p style={S.hsub}>{teacher?.email||t.teacher_panel}{isAdminEmail(teacher?.email)&&<span style={{marginLeft:"0.4rem",color:"#f9d56e"}}>· 👑 {t.admin_label}</span>}</p></div>
       <div style={{display:"flex",gap:"0.5rem",alignItems:"center",flexWrap:"wrap"}}>
         <LangToggle lang={lang} setLang={setLang}/>
         <button style={S.bts} onClick={()=>setMode("landing")}>{t.back_home}</button>
