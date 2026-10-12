@@ -25,6 +25,9 @@ const sb = {
   async delete(table, id) {
     await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, { method:"DELETE", headers:this.headers });
   },
+  async deleteWhere(table, filter) {
+    await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, { method:"DELETE", headers:this.headers });
+  },
   async selectOne(table, filter) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}&limit=1`, { headers:this.headers });
     const d = await r.json(); return Array.isArray(d)?d[0]:null;
@@ -102,6 +105,18 @@ function generateCode() {
 const T = {
   es: {
     appName:"LecturaBloom", tagline:"Comprensión lectora · Bloom · TEKS",
+    lp_badges:"Gratuita · Bilingüe (español e inglés) · Alineada a TEKS y a la Taxonomía de Bloom",
+    lp_what_title:"¿Qué es LecturaBloom?",
+    lp_what:"LecturaBloom es una plataforma gratuita de comprensión lectora bilingüe, en español e inglés, para aulas de primaria y secundaria. Lleva a los estudiantes a pensar sobre un texto desde la comprensión literal hasta el pensamiento crítico, siguiendo los seis niveles de la Taxonomía de Bloom, y le muestra al maestro qué necesita cada estudiante para avanzar.",
+    lp_who_title:"¿Para quién es?",
+    lp_who:"Para maestros de aulas bilingües y de lenguaje dual (dual language), de educación especial y de lectura que necesitan diferenciar la instrucción, apoyar a estudiantes que aprenden en dos idiomas y alinear su enseñanza a los estándares TEKS de Texas y a las preguntas tipo STAAR.",
+    lp_how_title:"¿Cómo funciona?",
+    lp_how:["El maestro ingresa un texto, el objetivo de aprendizaje y el estándar TEKS, y recibe un código para su clase.","Los estudiantes entran con ese código y responden seis preguntas, una por cada nivel de Bloom, adaptadas a su grado.","Si un estudiante tiene dificultades, recibe andamiaje: un ejercicio guiado paso a paso antes de continuar. Al final escribe una respuesta construida con la estrategia RAC.","El maestro ve los resultados de cada estudiante y recibe un plan de intervención con grupos, estrategias y actividades sugeridas."],
+    lp_ai_note:"Las preguntas, el andamiaje y los planes se generan con inteligencia artificial a partir del texto que elige el maestro. Los estudiantes no conversan con un chatbot ni crean cuentas: solo leen y responden actividades de comprensión.",
+    lp_calma_title:"¿Qué la sustenta?",
+    lp_calma:"LecturaBloom se sustenta en CALMA, un marco de análisis de aula e intervención desarrollado por la educadora Sandra Manchola. Sus cinco pilares son Contexto (equivocarse es información, no fracaso), Atención (un solo concepto a la vez), Lenguaje (el español como andamio hacia el inglés académico), Modelado (hacer visible el pensamiento) y Acompañamiento (apoyar antes de evaluar).",
+    lp_calma_link:"Conoce el marco CALMA y a su autora →",
+    lp_about:"Acerca de", lp_privacy:"Política de privacidad", lp_terms:"Términos de uso",
     iam_teacher:"👩‍🏫 Soy Docente", iam_student:"🎒 Soy Estudiante",
     teacher_panel:"Panel del Docente", student_zone:"Zona del Estudiante", student_label:"Estudiante",
     back_home:"← Inicio",
@@ -195,6 +210,18 @@ const T = {
   },
   en: {
     appName:"LecturaBloom", tagline:"Reading Comprehension · Bloom · TEKS",
+    lp_badges:"Free · Bilingual (Spanish & English) · Aligned to TEKS and Bloom's Taxonomy",
+    lp_what_title:"What is LecturaBloom?",
+    lp_what:"LecturaBloom is a free, bilingual (Spanish and English) reading comprehension platform for elementary and secondary classrooms. It guides students from literal understanding to critical thinking about a text, following the six levels of Bloom's Taxonomy, and shows the teacher exactly what each student needs to move forward.",
+    lp_who_title:"Who is it for?",
+    lp_who:"For bilingual and dual language teachers, special education teachers, and reading teachers who need to differentiate instruction, support students learning in two languages, and align their teaching to the Texas TEKS and STAAR-style questions.",
+    lp_how_title:"How does it work?",
+    lp_how:["The teacher enters a text, the learning objective, and the TEKS standard, and gets a code for the class.","Students join with that code and answer six questions, one for each level of Bloom's Taxonomy, adapted to their grade.","When a student struggles, they get scaffolding: a step-by-step guided exercise before moving on. At the end, they write a constructed response using the RAC strategy.","The teacher sees each student's results and receives an intervention plan with groups, strategies, and suggested activities."],
+    lp_ai_note:"Questions, scaffolding, and plans are generated with artificial intelligence from the text the teacher chooses. Students do not chat with a chatbot or create accounts: they only read and complete comprehension activities.",
+    lp_calma_title:"What is it built on?",
+    lp_calma:"LecturaBloom is built on CALMA, a classroom analysis and intervention framework developed by educator Sandra Manchola. Its five pillars are Context (mistakes are information, not failure), Attention (one concept at a time), Language (Spanish as a scaffold toward academic English), Modeling (making thinking visible), and Accompaniment (support before evaluating).",
+    lp_calma_link:"Learn about the CALMA framework and its author →",
+    lp_about:"About", lp_privacy:"Privacy Policy", lp_terms:"Terms of Service",
     iam_teacher:"👩‍🏫 I'm a Teacher", iam_student:"🎒 I'm a Student",
     teacher_panel:"Teacher Dashboard", student_zone:"Student Zone", student_label:"Student",
     back_home:"← Home",
@@ -553,7 +580,7 @@ function HistoryList({onSelect,onNew,lang,db,teacherEmail}) {
           {s.session_code&&<span style={{fontSize:"1.1rem",fontWeight:"900",color:"#f9d56e",letterSpacing:"0.1em"}}>{s.session_code}</span>}
           <div style={{display:"flex",gap:"0.4rem"}}>
             <span style={{...S.pill("#64B5F6")}}>{t.view_session}</span>
-            {isMine(s)&&<span style={{...S.pill("#EF9A9A"),cursor:"pointer"}} onClick={e=>{e.stopPropagation();if(window.confirm(t.confirm_delete)){sb.delete("sessions",s.id);setSessions(p=>p.filter(x=>x.id!==s.id));}}}>{t.delete_session}</span>}
+            {isMine(s)&&<span style={{...S.pill("#EF9A9A"),cursor:"pointer"}} onClick={e=>{e.stopPropagation();if(window.confirm(t.confirm_delete)){(async()=>{await sb.deleteWhere("student_results",`session_id=eq.${s.id}`);await sb.delete("sessions",s.id);})();setSessions(p=>p.filter(x=>x.id!==s.id));}}}>{t.delete_session}</span>}
           </div>
         </div>
       </div>
@@ -563,6 +590,13 @@ function HistoryList({onSelect,onNew,lang,db,teacherEmail}) {
 
 // ─── SESSION DETAIL ────────────────────────────────────────────────────────────
 // Un plan solo es válido si trae grupos de intervención (evita mostrar/guardar planes vacíos)
+// Reemplaza los códigos E1, E2... por los nombres reales en todo el plan (texto, listas, objetos)
+const restoreStudentNames = (val, names) => {
+  if (typeof val === "string") return val.replace(/\bE(\d+)\b/g, (m,n)=>names[Number(n)-1] ?? m);
+  if (Array.isArray(val)) return val.map(v=>restoreStudentNames(v,names));
+  if (val && typeof val === "object") return Object.fromEntries(Object.entries(val).map(([k,v])=>[k,restoreStudentNames(v,names)]));
+  return val;
+};
 const isValidReport = r => !!(r && !r.error && Array.isArray(r.interventionGroups) && r.interventionGroups.length);
 
 function SessionDetail({session,onBack,lang,db}) {
@@ -586,10 +620,13 @@ function SessionDetail({session,onBack,lang,db}) {
   const generateReport=async()=>{
     setGenReport(true); setReportError("");
     try {
-      const sum=students.map(s=>`${s.student_name}: Bloom ${s.bloom_score}/6, exit ${s.exit_correct?"correct":"incorrect"}, scaffolding ${s.needed_scaffolding?"yes":"no"}`).join("\n");
-      const r=await callClaude(t.rep_system,
-        `Objective:"${session.objective}"\nTEKS:"${session.teks}"\nLanguage:${t.scaffold_lang}\nStudents:\n${sum}\n\nFor EACH student provide individual strengths and areas to work on. Then group students for intervention. Be CONCISE: max 12 words per strength, weakness, strategy or activity; max 3 strategies and 3 activities per group. JSON:\n{"summary":"","studentAnalysis":[{"name":"","strengths":["",""],"weaknesses":["",""]}],"interventionGroups":[{"groupName":"","students":[],"bloomRange":"","priority":"high|medium|low","focus":"","strategies":[],"suggestedActivities":[]}],"immediateActions":[],"nextSteps":""}`
+      // 🔒 Privacidad: la IA recibe códigos (E1, E2...), nunca los nombres reales de los estudiantes
+      const names=students.map(s=>s.student_name);
+      const sum=students.map((s,i)=>`E${i+1}: Bloom ${s.bloom_score}/6, exit ${s.exit_correct?"correct":"incorrect"}, scaffolding ${s.needed_scaffolding?"yes":"no"}`).join("\n");
+      const coded=await callClaude(t.rep_system,
+        `Objective:"${session.objective}"\nTEKS:"${session.teks}"\nLanguage:${t.scaffold_lang}\nStudents (identified only by code):\n${sum}\n\nAlways refer to students by their exact code (E1, E2...). For EACH student provide individual strengths and areas to work on. Then group students for intervention. Be CONCISE: max 12 words per strength, weakness, strategy or activity; max 3 strategies and 3 activities per group. JSON:\n{"summary":"","studentAnalysis":[{"name":"","strengths":["",""],"weaknesses":["",""]}],"interventionGroups":[{"groupName":"","students":[],"bloomRange":"","priority":"high|medium|low","focus":"","strategies":[],"suggestedActivities":[]}],"immediateActions":[],"nextSteps":""}`
       ,4000);
+      const r=restoreStudentNames(coded,names); // vuelve a poner los nombres reales, solo en el navegador
       if(!isValidReport(r)){
         console.error("Plan de intervención no válido:", r);
         setReportError(r?.error==="timeout"?t.report_timeout:t.report_error);
@@ -1110,9 +1147,12 @@ function ResetPassword({accessToken, lang, onDone}) {
   </div>;
 }
 
+// Estilo de párrafos de la página de inicio
+const LP={fontSize:"0.93rem",lineHeight:"1.75",color:"rgba(255,255,255,0.78)",margin:0};
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [lang,setLang]=useState("es");
+  const [lang,setLang]=useState(()=>{try{return new URLSearchParams(window.location.search).get("lang")==="en"?"en":"es";}catch{return "es";}});
   const [mode,setMode]=useState("landing");  // landing | teacher | student | ready
   const [recoveryToken,setRecoveryToken]=useState(null);
 
@@ -1232,6 +1272,42 @@ export default function App() {
         </button>
       </div>
     </div>
+
+    {/* ── Qué es LecturaBloom — visible sin iniciar sesión (personas y filtros escolares) ── */}
+    <div style={{maxWidth:"760px",margin:"0 auto",padding:"0 1rem 2rem"}}>
+      <p style={{textAlign:"center",fontSize:"0.8rem",letterSpacing:"0.06em",color:"rgba(255,255,255,0.55)",margin:"-1rem 0 2rem"}}>{t.lp_badges}</p>
+      <section style={S.card}>
+        <h2 style={S.ctitle}>{t.lp_what_title}</h2>
+        <p style={LP}>{t.lp_what}</p>
+      </section>
+      <section style={S.card}>
+        <h2 style={S.ctitle}>{t.lp_who_title}</h2>
+        <p style={LP}>{t.lp_who}</p>
+      </section>
+      <section style={S.card}>
+        <h2 style={S.ctitle}>{t.lp_how_title}</h2>
+        <ol style={{margin:0,padding:0,listStyle:"none"}}>
+          {t.lp_how.map((step,i)=><li key={i} style={{display:"flex",gap:"0.8rem",alignItems:"flex-start",marginBottom:"0.9rem"}}>
+            <span style={{flexShrink:0,width:"1.7rem",height:"1.7rem",borderRadius:"50%",background:"rgba(249,213,110,0.15)",border:"1px solid rgba(249,213,110,0.4)",color:"#f9d56e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"0.8rem",fontWeight:"700"}}>{i+1}</span>
+            <span style={LP}>{step}</span>
+          </li>)}
+        </ol>
+        <p style={{...LP,fontSize:"0.83rem",color:"rgba(255,255,255,0.5)",marginTop:"0.3rem"}}>{t.lp_ai_note}</p>
+      </section>
+      <section style={S.card}>
+        <h2 style={S.ctitle}>{t.lp_calma_title}</h2>
+        <p style={{...LP,marginBottom:"0.9rem"}}>{t.lp_calma}</p>
+        <a href={`/about.html?lang=${lang}`} style={{color:"#f9d56e",fontSize:"0.88rem"}}>{t.lp_calma_link}</a>
+      </section>
+    </div>
+    <footer style={{borderTop:"1px solid rgba(255,255,255,0.1)",padding:"1.5rem 1rem 2rem",textAlign:"center"}}>
+      <nav style={{display:"flex",gap:"1.4rem",justifyContent:"center",flexWrap:"wrap",marginBottom:"0.7rem"}}>
+        {[["about",t.lp_about],["privacy",t.lp_privacy],["terms",t.lp_terms]].map(([page,label])=>(
+          <a key={page} href={`/${page}.html?lang=${lang}`} style={{color:"rgba(255,255,255,0.7)",fontSize:"0.85rem"}}>{label}</a>
+        ))}
+      </nav>
+      <p style={{color:"rgba(255,255,255,0.4)",fontSize:"0.78rem",margin:0}}>© {new Date().getFullYear()} Sandra Manchola · LecturaBloom</p>
+    </footer>
   </div>;
 
   // ── TEACHER LOGIN ──

@@ -1,12 +1,108 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LecturaBloom</title>
+    <title>LecturaBloom · Comprensión lectora bilingüe · Bilingual reading comprehension</title>
+    <meta name="description" content="LecturaBloom es una plataforma educativa gratuita de comprensión lectora bilingüe (español e inglés) para aulas de primaria y secundaria, alineada a los TEKS de Texas y a la Taxonomía de Bloom. A free, bilingual reading comprehension platform for K-12 classrooms." />
+    <meta name="author" content="Sandra Manchola" />
+    <link rel="canonical" href="https://www.lecturabloom.com/" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#0f0c29" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="LecturaBloom" />
+    <meta property="og:title" content="LecturaBloom · Comprensión lectora bilingüe para el aula" />
+    <meta property="og:description" content="Plataforma educativa gratuita de comprensión lectora en español e inglés, alineada a TEKS y a la Taxonomía de Bloom, creada por la educadora Sandra Manchola." />
+    <meta property="og:url" content="https://www.lecturabloom.com/" />
+    <meta property="og:locale" content="es_US" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "LecturaBloom",
+        "url": "https://www.lecturabloom.com/",
+        "description": "Free bilingual (Spanish and English) reading comprehension platform for elementary and secondary classrooms, aligned to the Texas Essential Knowledge and Skills (TEKS) and Bloom's Taxonomy.",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Web browser",
+        "inLanguage": ["es", "en"],
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "audience": { "@type": "EducationalAudience", "educationalRole": "teacher" },
+        "educationalUse": "Reading comprehension practice, formative assessment, and intervention planning",
+        "author": { "@type": "Person", "name": "Sandra Manchola" }
+      }
+    </script>
+
+    <style>
+      /* Estilos del contenido estático (se ve antes de que cargue la app y es lo que leen los filtros) */
+      body { margin: 0; background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); background-attachment: fixed; color: #f0ece4; font-family: Georgia, "Times New Roman", serif; }
+      .lb-static { max-width: 760px; margin: 0 auto; padding: 3rem 1rem 2rem; line-height: 1.7; }
+      .lb-static h1 { color: #f9d56e; font-size: 1.9rem; margin: 0 0 0.2rem; text-align: center; }
+      .lb-static .by { text-align: center; font-style: italic; color: rgba(255,255,255,0.6); margin: 0 0 1.5rem; }
+      .lb-static h2 { color: #f9d56e; font-size: 1.1rem; margin: 1.4rem 0 0.4rem; }
+      .lb-static p, .lb-static li { color: rgba(255,255,255,0.8); font-size: 0.95rem; }
+      .lb-static hr { border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 2rem 0; }
+      .lb-static a { color: #f9d56e; }
+      .lb-static nav { text-align: center; margin-top: 2rem; }
+      .lb-static nav a { margin: 0 0.7rem; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Este contenido lo reemplaza la app al cargar. Está aquí para que los filtros
+           escolares y los buscadores, que leen el HTML sin ejecutar JavaScript,
+           entiendan que LecturaBloom es un sitio educativo. -->
+      <main class="lb-static">
+        <h1>LecturaBloom</h1>
+        <p class="by">by Sandra Manchola</p>
+
+        <section lang="es">
+          <h2>¿Qué es LecturaBloom?</h2>
+          <p>LecturaBloom es una plataforma educativa gratuita de comprensión lectora bilingüe, en español e inglés, para aulas de primaria y secundaria. Lleva a los estudiantes a pensar sobre un texto desde la comprensión literal hasta el pensamiento crítico, siguiendo los seis niveles de la Taxonomía de Bloom, y le muestra al maestro qué necesita cada estudiante para avanzar.</p>
+          <h2>¿Para quién es?</h2>
+          <p>Para maestros de aulas bilingües y de lenguaje dual (dual language), de educación especial y de lectura que necesitan diferenciar la instrucción, apoyar a estudiantes que aprenden en dos idiomas y alinear su enseñanza a los estándares TEKS de Texas y a las preguntas tipo STAAR.</p>
+          <h2>¿Cómo funciona?</h2>
+          <ol>
+            <li>El maestro ingresa un texto, el objetivo de aprendizaje y el estándar TEKS, y recibe un código para su clase.</li>
+            <li>Los estudiantes entran con ese código y responden seis preguntas, una por cada nivel de Bloom, adaptadas a su grado.</li>
+            <li>Si un estudiante tiene dificultades, recibe andamiaje: un ejercicio guiado paso a paso antes de continuar. Al final escribe una respuesta construida con la estrategia RAC.</li>
+            <li>El maestro ve los resultados de cada estudiante y recibe un plan de intervención con grupos, estrategias y actividades sugeridas.</li>
+          </ol>
+          <p>Las preguntas, el andamiaje y los planes se generan con inteligencia artificial a partir del texto que elige el maestro. Los estudiantes no conversan con un chatbot ni crean cuentas: solo leen y responden actividades de comprensión.</p>
+          <h2>¿Qué la sustenta?</h2>
+          <p>LecturaBloom se sustenta en CALMA, un marco de análisis de aula e intervención desarrollado por la educadora Sandra Manchola. Sus cinco pilares son Contexto (equivocarse es información, no fracaso), Atención (un solo concepto a la vez), Lenguaje (el español como andamio hacia el inglés académico), Modelado (hacer visible el pensamiento) y Acompañamiento (apoyar antes de evaluar).</p>
+        </section>
+
+        <hr />
+
+        <section lang="en">
+          <h2>What is LecturaBloom?</h2>
+          <p>LecturaBloom is a free, bilingual (Spanish and English) reading comprehension platform for elementary and secondary classrooms. It guides students from literal understanding to critical thinking about a text, following the six levels of Bloom's Taxonomy, and shows the teacher exactly what each student needs to move forward.</p>
+          <h2>Who is it for?</h2>
+          <p>For bilingual and dual language teachers, special education teachers, and reading teachers who need to differentiate instruction, support students learning in two languages, and align their teaching to the Texas TEKS and STAAR-style questions.</p>
+          <h2>How does it work?</h2>
+          <ol>
+            <li>The teacher enters a text, the learning objective, and the TEKS standard, and gets a code for the class.</li>
+            <li>Students join with that code and answer six questions, one for each level of Bloom's Taxonomy, adapted to their grade.</li>
+            <li>When a student struggles, they get scaffolding: a step-by-step guided exercise before moving on. At the end, they write a constructed response using the RAC strategy.</li>
+            <li>The teacher sees each student's results and receives an intervention plan with groups, strategies, and suggested activities.</li>
+          </ol>
+          <p>Questions, scaffolding, and plans are generated with artificial intelligence from the text the teacher chooses. Students do not chat with a chatbot or create accounts: they only read and complete comprehension activities.</p>
+          <h2>What is it built on?</h2>
+          <p>LecturaBloom is built on CALMA, a classroom analysis and intervention framework developed by educator Sandra Manchola. Its five pillars are Context (mistakes are information, not failure), Attention (one concept at a time), Language (Spanish as a scaffold toward academic English), Modeling (making thinking visible), and Accompaniment (support before evaluating).</p>
+        </section>
+
+        <nav>
+          <a href="/about.html">Acerca de · About</a>
+          <a href="/privacy.html">Privacidad · Privacy</a>
+          <a href="/terms.html">Términos · Terms</a>
+        </nav>
+        <p style="text-align:center;font-size:0.8rem;color:rgba(255,255,255,0.45)">© 2026 Sandra Manchola · LecturaBloom</p>
+      </main>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
